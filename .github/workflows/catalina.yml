@@ -30,7 +30,7 @@ jobs:
           echo "CFLAGS=-arch x86_64" >> $GITHUB_ENV
           echo "LDFLAGS=-arch x86_64" >> $GITHUB_ENV
 
-      - name: Compile Redis (Catalina-safe)
+      - name: Compile Redis
         env:
           MACOSX_DEPLOYMENT_TARGET: 10.15
           ARCHS: x86_64
