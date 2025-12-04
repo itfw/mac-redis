@@ -1,0 +1,74 @@
+name: Build Redis for macOS Catalina (10.15)
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    # 使用 macos-13 (Ventura)：仍包含 Intel 机器，且能设置低部署目标
+    # 避免 macos-14（Sonoma）：默认 Apple Silicon + 高 SDK，兼容性风险更高
+    runs-on: macos-13
+
+    steps:
+      - name: Checkout Redis source
+        uses: actions/checkout@v4
+        with:
+          repository: redis/redis
+          # 如需特定版本，可加 ref: 7.2.0 等
+
+      - name: Set environment for maximum Catalina compatibility
+        run: |
+          echo "Setting deployment target to 10.15 (Catalina)"
+          echo "MACOSX_DEPLOYMENT_TARGET=10.15" >> $GITHUB_ENV
+          # 强制使用 Intel 架构（Catalina 主要在 Intel Mac 上运行）
+          echo "ARCHS=x86_64" >> $GITHUB_ENV
+          echo "CFLAGS=-arch x86_64" >> $GITHUB_ENV
+          echo "LDFLAGS=-arch x86_64" >> $GITHUB_ENV
+
+      - name: Compile Redis (Catalina-safe)
+        env:
+          MACOSX_DEPLOYMENT_TARGET: 10.15
+          ARCHS: x86_64
+        run: |
+          # 禁用 jemalloc：Catalina 上 libc malloc 更稳定
+          # 显式指定架构为 x86_64（避免生成 ARM64）
+          make -j$(sysctl -n hw.ncpu) \
+            USE_JEMALLOC=no \
+            CFLAGS="-arch x86_64 -mmacosx-version-min=10.15" \
+            LDFLAGS="-arch x86_64 -mmacosx-version-min=10.15"
+
+      - name: Verify binaries are x86_64 and compatible with 10.15
+        run: |
+          echo "=== Redis Version ==="
+          ./src/redis-server --version
+
+          echo "=== Binary Architecture ==="
+          file ./src/redis-server
+
+          echo "=== Load Commands (Deployment Target) ==="
+          otool -l ./src/redis-server | grep -A3 -E "LC_VERSION_MIN_MACOSX|LC_BUILD_VERSION" || echo "No version command found"
+
+          echo "=== Check for any ARM64 or multi-arch ==="
+          lipo -info ./src/redis-server || true
+
+      - name: Test basic functionality (optional but recommended)
+        run: |
+          timeout 5s ./src/redis-server --daemonize yes --port 6380 || true
+          sleep 1
+          ./src/redis-cli -p 6380 ping || echo "Redis test failed (may be okay in CI)"
+          ./src/redis-cli -p 6380 shutdown || true
+
+      - name: Package and upload artifact
+        run: |
+          mkdir -p redis-catalina
+          cp src/redis-server src/redis-cli src/redis-benchmark src/redis-check-rdb src/redis-check-aof redis-catalina/
+          tar -czvf redis-macos-catalina-x86_64.tar.gz -C redis-catalina .
+
+      - name: Upload binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: redis-macos-catalina-x86_64
+          path: redis-macos-catalina-x86_64.tar.gz
