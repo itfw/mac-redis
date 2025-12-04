@@ -38,7 +38,7 @@ jobs:
           make -j$(sysctl -n hw.ncpu) \
             USE_JEMALLOC=no \
             CFLAGS="-arch x86_64 -mmacosx-version-min=10.15" \
-            LDFLAGS="-arch x86_64 -mmacosx-version-min=10.15"
+            LDFLAGS="-arch x86_64"
 
       - name: Verify binaries are x86_64 and compatible with 10.15
         run: |
