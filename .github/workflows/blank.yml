@@ -1,0 +1,40 @@
+name: Build Redis for macOS Catalina
+
+on: [push, pull_request, workflow_dispatch]
+
+jobs:
+  build:
+    runs-on: macos-13  # 使用仍支持 Intel 的 Ventura（比 Sonoma 兼容性更好）
+
+    steps:
+      - name: Checkout Redis
+        uses: actions/checkout@v4
+        with:
+          repository: redis/redis
+
+      - name: Set deployment target to Catalina (10.15)
+        run: |
+          echo "Building for macOS >= 10.15"
+          export MACOSX_DEPLOYMENT_TARGET=10.15
+          # 验证变量（可选）
+          echo "MACOSX_DEPLOYMENT_TARGET=$MACOSX_DEPLOYMENT_TARGET"
+
+      - name: Compile Redis (disable jemalloc for better compatibility)
+        run: |
+          export MACOSX_DEPLOYMENT_TARGET=10.15
+          make -j$(sysctl -n hw.ncpu) USE_JEMALLOC=no
+
+      - name: Check binary compatibility
+        run: |
+          ./src/redis-server --version
+          # 查看链接的最低 macOS 版本
+          otool -l ./src/redis-server | grep -A5 LC_VERSION_MIN_MACOSX
+
+      - name: Upload binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: redis-macos-catalina-compatible
+          path: |
+            src/redis-server
+            src/redis-cli
+            src/redis-benchmark
