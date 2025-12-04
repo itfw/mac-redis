@@ -1,10 +1,12 @@
-name: Build Redis for macOS Catalina (10.15)
+name: Build Redis for macOS 
 
 on:
-  push:
-    branches: [ main ]
-  pull_request:
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Release tag (e.g. v7.2.0)'
+        required: true
+        type: string
 
 jobs:
   build:
@@ -72,3 +74,27 @@ jobs:
         with:
           name: redis-macos-catalina-x86_64
           path: redis-macos-catalina-x86_64.tar.gz
+      
+      - name: Release to GitHub
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.release_tag }}
+          name: Redis ${{ github.event.inputs.release_tag }} for macOS Catalina
+          draft: false
+          prerelease: false
+          files: redis-macos-catalina-x86_64.tar.gz
+          body: |
+            🍏 macOS Catalina (10.15+) compatible Redis binaries (Intel x86_64 only)
+
+            Includes:
+            - redis-server
+            - redis-cli
+            - redis-benchmark
+            - redis-check-rdb
+            - redis-check-aof
+
+            Built from official Redis source.
+            Deployment target: macOS 10.15
+            Architecture: x86_64
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
